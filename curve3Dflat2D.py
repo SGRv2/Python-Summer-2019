@@ -7,9 +7,8 @@ import numpy as np
 from scipy import optimize
 import matplotlib.pyplot as plt
 
-# Could use either skimage or cv to read the image
-# img = io.imread('jar.png')   
-img = cv2.imread('jar.png')
+# using cv2 to read the image  
+img = cv2.imread('picklejar.jpg')
 gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 ret, thresh = cv2.threshold(gray_image,127,255,cv2.THRESH_BINARY)
 edges = cv2.Canny(thresh ,100, 200)
@@ -24,7 +23,7 @@ cnt=contours[max_index]
 mask = np.zeros(img.shape,np.uint8)
 cv2.drawContours(mask, [cnt],0,255,-1)
 
-# Find the 4 borders
+# Find the 4 borders using Sobel
 scale = 1
 delta = 0
 ddepth = cv2.CV_8U
@@ -34,7 +33,7 @@ right=cv2.Sobel(mask,ddepth,1,0,ksize=1,scale=-1,delta=0, borderType)
 top=cv2.Sobel(mask,ddepth,0,1,ksize=1,scale=1,delta=0,borderType)
 bottom=cv2.Sobel(mask,ddepth,0,1,ksize=1,scale=-1,delta=0,borderType)
 
-# Remove noise from borders
+# Noise removal
 kernel = np.ones((2,2),np.uint8)
 left_border = cv2.erode(left,kernel,iterations = 1)
 right_border = cv2.erode(right,kernel,iterations = 1)
