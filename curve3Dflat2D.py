@@ -1,55 +1,112 @@
+#Import both skimage and cv
+from skimage import transform as tf
+from skimage import io
 import cv2
+
 import numpy as np
+from scipy import optimize
+import matplotlib.pyplot as plt
 
-class Line(object):
-    def __init__(self, p1, p2):
-        """
-        For line y = m*x + c, calculate m and c parameters
-        If the line is vertical, set "vertical" attr to True and save "x" position of the line
-        """
-        self.p1 = p1
-        self.p2 = p2
-        self.vertical = False
-        self.fixed_x = None
-        self.k = None
-        self.b = None
+# Could use either skimage or cv to read the image
+# img = io.imread('jar.png')   
+img = cv2.imread('jar.png')
+gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+ret, thresh = cv2.threshold(gray_image,127,255,cv2.THRESH_BINARY)
+edges = cv2.Canny(thresh ,100, 200)
 
-        # cached angle props
-        self.angle = None
-        self.angle_cos = None
-        self.angle_sin = None
+# Find largest contour (should be the label)
+contours,hierarchy = cv2.findContours(edges, 0, 1)
+areas = [cv2.contourArea(c) for c in contours]
+max_index = np.argmax(areas)
+cnt=contours[max_index]
 
-        self.set_line_props(point1, point2)
+# Create a mask of the label
+mask = np.zeros(img.shape,np.uint8)
+cv2.drawContours(mask, [cnt],0,255,-1)
 
-    def is_vertical(self):
-        return self.vertical
+# Find the 4 borders
+scale = 1
+delta = 0
+ddepth = cv2.CV_8U
+borderType=cv2.BORDER_DEFAULT
+left=cv2.Sobel(mask,ddepth,1,0,ksize=1,scale=1,delta=0,borderType)
+right=cv2.Sobel(mask,ddepth,1,0,ksize=1,scale=-1,delta=0, borderType)
+top=cv2.Sobel(mask,ddepth,0,1,ksize=1,scale=1,delta=0,borderType)
+bottom=cv2.Sobel(mask,ddepth,0,1,ksize=1,scale=-1,delta=0,borderType)
 
-    def set_line_props(self, point1, point2):
-        if point2[0] - point1[0]:
-            self.k = float(point2[1] - point1[1]) / (point2[0] - point1[0])
-            self.b = point2[1] - self.k * point2[0]
+# Remove noise from borders
+kernel = np.ones((2,2),np.uint8)
+left_border = cv2.erode(left,kernel,iterations = 1)
+right_border = cv2.erode(right,kernel,iterations = 1)
+top_border = cv2.erode(top,kernel,iterations = 1)
+bottom_border = cv2.erode(bottom,kernel,iterations = 1)
 
-            k_normal = - 1 / self.k
-        else:
-            self.vertical = True
-            self.fixed_x = point2[0]
+# Find coeficients c1,c2, ... ,c7,c8 by minimizing the error function. 
+# Points on the left border should be mapped to (0,anything).
+# Points on the right border should be mapped to (108,anything)
+# Points on the top border should be mapped to (anything,0)
+# Points on the bottom border should be mapped to (anything,70)
+# Equations 1 and 2: 
+#    c1 + c2*x + c3*y + c4*x*y, c5 + c6*y + c7*x + c8*x^2
 
-            k_normal = 0
+sumOfSquares_y = '+'.join(["(c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" %
+    (x,y,x,y) for y,x,z in np.transpose(np.nonzero(left_border)) ])
+sumOfSquares_y += " + "
+sumOfSquares_y += \
+    '+'.join(["(-108+c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
+    (x,y,x,y) for y,x,z in np.transpose(np.nonzero(right_border)) ])
+res_y = optimize.minimize(lambda c: eval(sumOfSquares_y),(0,0,0,0),method='SLSQP')
 
-        self.angle = np.arctan(k_normal)
-        self.angle_cos = np.cos(self.angle)
-        self.angle_sin = np.sin(self.angle)
-
-    def get_x(self, y):
-        if self.is_vertical():
-            return self.fixed_x
-        else:
-            return int(round(float(y - self.b) / self.k))
-
-    def get_y(self, x):
-        return self.k * x + self.b
+sumOfSquares_x = \
+    '+'.join(["(-70+c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
+    (y,x,x,x) for y,x,z in np.transpose(np.nonzero(bottom_border))])
+sumOfSquares_x += " + "
+sumOfSquares_x += \
+    '+'.join( [ "(c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
+    (y,x,x,x) for y,x,z in np.transpose(np.nonzero(top_border)) ] )
+res_x = optimize.minimize(lambda c: eval(sumOfSquares_x),(0,0,0,0), method='SLSQP')
 
 
-class LabelUnwrapper(object):
-    COL_COUNT = 30
-    ROW_COUNT = 20
+# Map the image using equatinos 1 and 2 (coeficients c1...c8 in res_x and res_y)
+def map_x(res, cord):
+    m = res[0]+res[1]*cord[1]+res[2]*cord[0]+res[3]*cord[1]*cord[0]
+    return m
+def map_y(res, cord):
+    m = res[0]+res[1]*cord[0]+res[2]*cord[1]+res[3]*cord[1]*cord[1]
+    return m
+
+flattened = np.zeros(img.shape, img.dtype) 
+for y,x,z in np.transpose(np.nonzero(mask)):
+    new_y = map_y(res_x.x,[y,x]) 
+    new_x = map_x(res_y.x,[y,x])
+    flattened[int(new_y)][int(new_x)] = img[y][x]
+# Crop the image 
+flattened = flattened[0:70, 0:105]
+
+# Use  skimage to transform the image
+leftmost = tuple(cnt[cnt[:,:,0].argmin()][0])
+rightmost = tuple(cnt[cnt[:,:,0].argmax()][0])
+topmost = tuple(cnt[cnt[:,:,1].argmin()][0])
+bottommost = tuple(cnt[cnt[:,:,1].argmax()][0])
+
+dst = list()
+src = list()
+for y,x,z in np.transpose(np.nonzero(top_border)):
+    dst.append([x,y])
+    src.append([x,topmost[1]])
+for y,x,z in np.transpose(np.nonzero(bottom_border)):
+    dst.append([x,y])
+    src.append([x,bottommost[1]])
+for y,x,z in np.transpose(np.nonzero(left_border)):
+    dst.append([x,y])
+    src.append([leftmost[0],y])
+for y,x,z in np.transpose(np.nonzero(right_border)):
+    dst.append([x,y])
+    src.append([rightmost[0],y])
+src = np.array(src)
+dst = np.array(dst)
+
+tform3 = tf.PiecewiseAffineTransform()
+tform3.estimate(src, dst)
+warped = tf.warp(img, tform3, order=2)
+warped = warped[85:170, 31:138]
