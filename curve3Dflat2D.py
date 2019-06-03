@@ -51,20 +51,17 @@ Points on the:
     c1 + c2*x + c3*y + c4*x*y, c5 + c6*y + c7*x + c8*x^2
 '''
 
-sumOfSquares_y = '+'.join(["(c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" %
+sumOfSquares_y = '+'.join(["(c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
     (x,y,x,y) for y,x,z in np.transpose(np.nonzero(leftb)) ])
 sumOfSquares_y += " + "
-sumOfSquares_y += \
-    '+'.join(["(-108+c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
+sumOfSquares_y += '+'.join(["(-108+c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
     (x,y,x,y) for y,x,z in np.transpose(np.nonzero(rightb)) ])
 res_y = optimize.minimize(lambda c: eval(sumOfSquares_y),(0,0,0,0),method='SLSQP')
 
-sumOfSquares_x = \
-    '+'.join(["(-70+c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
+sumOfSquares_x = '+'.join(["(-70+c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
     (y,x,x,x) for y,x,z in np.transpose(np.nonzero(bottomb))])
 sumOfSquares_x += " + "
-sumOfSquares_x += \
-    '+'.join( [ "(c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
+sumOfSquares_x += '+'.join( [ "(c[0]+c[1]*%s+c[2]*%s+c[3]*%s*%s)**2" % \
     (y,x,x,x) for y,x,z in np.transpose(np.nonzero(topb)) ] )
 res_x = optimize.minimize(lambda c: eval(sumOfSquares_x),(0,0,0,0), method='SLSQP')
 
