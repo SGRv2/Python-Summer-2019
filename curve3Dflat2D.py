@@ -7,13 +7,13 @@ import numpy as np
 from scipy import optimize
 import matplotlib.pyplot as plt
 
-# using cv2 to read the image  
+# reading the image with cv2
 img = cv2.imread('picklejar.jpg')
 grayimg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 ret, thresh = cv2.threshold(grayimg,127,255,cv2.THRESH_BINARY)
 edges = cv2.Canny(thresh ,100, 200)
 
-# Find largest contour (should be the label)
+# locate the largest contour aka the label
 contours,hierarchy = cv2.findContours(edges, 0, 1)
 areas = [cv2.contourArea(c) for c in contours]
 max_index = np.argmax(areas)
@@ -42,10 +42,11 @@ bottomb = cv2.erode(bottom,kernel,iterations = 1)
 
 '''
 Find coefficients c1,c2, ... ,c7,c8 by minimizing the error function. 
-Points on the left border should be mapped to (0,anything).
-Points on the right border should be mapped to (108,anything)
-Points on the top border should be mapped to (anything,0)
-Points on the bottom border should be mapped to (anything,70)
+Points on the:
+ left border should be mapped to (0,anything).
+ right border should be mapped to (108,anything)
+ top border should be mapped to (anything,0)
+ bottom border should be mapped to (anything,70)
  Equations 1 and 2: 
     c1 + c2*x + c3*y + c4*x*y, c5 + c6*y + c7*x + c8*x^2
 '''
@@ -68,12 +69,12 @@ sumOfSquares_x += \
 res_x = optimize.minimize(lambda c: eval(sumOfSquares_x),(0,0,0,0), method='SLSQP')
 
 
-# Map the image using equatinos 1 and 2 (coeficients c1...c8 in res_x and res_y)
-def map_x(res, cord):
-    m = res[0]+res[1]*cord[1]+res[2]*cord[0]+res[3]*cord[1]*cord[0]
+# Map the image using equations 1 and 2 
+def map_x(res, coord):
+    m = res[0]+res[1]*coord[1]+res[2]*coord[0]+res[3]*coord[1]*coord[0]
     return m
-def map_y(res, cord):
-    m = res[0]+res[1]*cord[0]+res[2]*cord[1]+res[3]*cord[1]*cord[1]
+def map_y(res, coord):
+    m = res[0]+res[1]*coord[0]+res[2]*coord[1]+res[3]*coord[1]*coord[1]
     return m
 
 flattened = np.zeros(img.shape, img.dtype) 
@@ -84,31 +85,3 @@ for y,x,z in np.transpose(np.nonzero(mask)):
 # Crop the image 
 flattened = flattened[0:70, 0:105]
 
-# Use  skimage to transform the image
-leftmost = tuple(cnt[cnt[:,:,0].argmin()][0])
-rightmost = tuple(cnt[cnt[:,:,0].argmax()][0])
-topmost = tuple(cnt[cnt[:,:,1].argmin()][0])
-bottommost = tuple(cnt[cnt[:,:,1].argmax()][0])
-
-dst = list()
-src = list()
-for y,x,z in np.transpose(np.nonzero(topb)):
-    dst.append([x,y])
-    src.append([x,topmost[1]])
-for y,x,z in np.transpose(np.nonzero(bottomb)):
-    dst.append([x,y])
-    src.append([x,bottommost[1]])
-for y,x,z in np.transpose(np.nonzero(leftb)):
-    dst.append([x,y])
-    src.append([leftmost[0],y])
-for y,x,z in np.transpose(np.nonzero(rightb)):
-    dst.append([x,y])
-    src.append([rightmost[0],y])
-src = np.array(src)
-dst = np.array(dst)
-
-
-tform3 = tf.PiecewiseAffineTransform()
-tform3.estimate(src, dst)
-warped = tf.warp(img, tform3, order=2)
-warped = warped[85:170, 31:138]
