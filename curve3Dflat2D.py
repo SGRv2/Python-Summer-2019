@@ -1,6 +1,5 @@
-#Import both skimage and cv
-from skimage import transform as tf
-from skimage import io
+#Import cv
+
 import cv2
 
 import numpy as np
