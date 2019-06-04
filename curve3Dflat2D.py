@@ -27,10 +27,10 @@ scale = 1
 delta = 0
 ddepth = cv2.CV_8U
 borderType=cv2.BORDER_DEFAULT
-left=cv2.Sobel(mask,ddepth,1,0,ksize=1,scale=1,delta=0,borderType)
-right=cv2.Sobel(mask,ddepth,1,0,ksize=1,scale=-1,delta=0, borderType)
-top=cv2.Sobel(mask,ddepth,0,1,ksize=1,scale=1,delta=0,borderType)
-bottom=cv2.Sobel(mask,ddepth,0,1,ksize=1,scale=-1,delta=0,borderType)
+left=cv2.Sobel(mask,ddepth,1,0,ksize=1,scale=1,delta=0,borderType=borderType)
+right=cv2.Sobel(mask,ddepth,1,0,ksize=1,scale=-1,delta=0, borderType=borderType)
+top=cv2.Sobel(mask,ddepth,0,1,ksize=1,scale=1,delta=0,borderType=borderType)
+bottom=cv2.Sobel(mask,ddepth,0,1,ksize=1,scale=-1,delta=0,borderType=borderType)
 
 # remove noise from borders
 kernel = np.ones((2,2),np.uint8)
